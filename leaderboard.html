@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaderboard - Udbhoron '19 Predictor</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="main-nav"></div>
+
+  <header class="page-header">
+    <h1>Leaderboard</h1>
+    <p>Top predictors of FIFA World Cup 2026</p>
+  </header>
+
+  <div class="page-content">
+    <div id="top-three" class="leaderboard-top"></div>
+
+    <div class="search-box">
+      <input type="text" id="search-input" placeholder="Search by name...">
+    </div>
+
+    <div style="margin-bottom:1rem;">
+      <button class="filter-btn active" id="show-top10">Top 10</button>
+      <button class="filter-btn" id="show-all">Full Leaderboard</button>
+    </div>
+
+    <div id="leaderboard-table-wrap"></div>
+  </div>
+
+  <div id="main-footer"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/users.js"></script>
+  <script src="js/components.js"></script>
+  <script>
+    Components.initNav('leaderboard');
+
+    let allUsers = [];
+    let showAll = false;
+    let searchQuery = '';
+
+    function getFilteredUsers() {
+      let users = allUsers;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        users = users.filter(u => u.name.toLowerCase().includes(q));
+      }
+      if (!showAll && !searchQuery) {
+        users = users.slice(0, 10);
+      }
+      return users;
+    }
+
+    function renderTopThree() {
+      const container = document.getElementById('top-three');
+      const top3 = allUsers.slice(0, 3);
+      if (!top3.length) {
+        container.innerHTML = '';
+        return;
+      }
+      const medals = ['🥇', '🥈', '🥉'];
+      container.innerHTML = top3.map((u, i) => `
+        <div class="top-player-card ${i === 0 ? 'first' : ''}">
+          <div class="rank">${medals[i]}</div>
+          <div class="name">${Utils.escapeHtml(u.name)}</div>
+          <div class="points">${u.totalPoints || 0} pts</div>
+        </div>
+      `).join('');
+    }
+
+    function renderTable() {
+      const container = document.getElementById('leaderboard-table-wrap');
+      const users = getFilteredUsers();
+
+      if (!users.length) {
+        container.innerHTML = '<p class="empty-state">No players found.</p>';
+        return;
+      }
+
+      container.innerHTML = `
+        <table class="leaderboard-table">
+          <thead>
+            <tr><th>Rank</th><th>Name</th><th>Points</th></tr>
+          </thead>
+          <tbody>
+            ${users.map((u, i) => {
+              const rank = allUsers.indexOf(u) + 1;
+              const rankClass = rank <= 3 ? `rank-${rank}` : 'rank-default';
+              return `
+                <tr>
+                  <td><span class="rank-badge ${rankClass}">${rank}</span></td>
+                  <td>${Utils.escapeHtml(u.name)}</td>
+                  <td><strong>${u.totalPoints || 0}</strong></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    document.getElementById('search-input').addEventListener('input', (e) => {
+      searchQuery = e.target.value.trim();
+      renderTable();
+    });
+
+    document.getElementById('show-top10').addEventListener('click', () => {
+      showAll = false;
+      document.getElementById('show-top10').classList.add('active');
+      document.getElementById('show-all').classList.remove('active');
+      renderTable();
+    });
+
+    document.getElementById('show-all').addEventListener('click', () => {
+      showAll = true;
+      document.getElementById('show-all').classList.add('active');
+      document.getElementById('show-top10').classList.remove('active');
+      renderTable();
+    });
+
+    const wrap = document.getElementById('leaderboard-table-wrap');
+    Utils.showLoading(wrap);
+
+    Users.subscribeLeaderboard(users => {
+      allUsers = users;
+      renderTopThree();
+      renderTable();
+    });
+  </script>
+</body>
+</html>

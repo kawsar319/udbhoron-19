@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Join / Login - Udbhoron '19 Predictor</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="main-nav"></div>
+
+  <header class="page-header">
+    <h1>Join the Competition</h1>
+    <p>Register or log in with your mobile number</p>
+  </header>
+
+  <div class="page-content">
+    <div class="form-card">
+      <div class="form-tabs">
+        <button class="form-tab active" id="tab-register">Register</button>
+        <button class="form-tab" id="tab-login">Login</button>
+      </div>
+
+      <form id="register-form">
+        <div class="form-group">
+          <label for="reg-name">Full Name</label>
+          <input type="text" id="reg-name" placeholder="Your full name" required maxlength="100">
+        </div>
+        <div class="form-group">
+          <label for="reg-mobile">Mobile Number</label>
+          <input type="tel" id="reg-mobile" placeholder="e.g. 01712345678" required>
+        </div>
+        <div class="form-error" id="register-error" style="display:none;"></div>
+        <button type="submit" class="btn btn-gold btn-block" id="register-btn">Create Account</button>
+      </form>
+
+      <form id="login-form" style="display:none;">
+        <div class="form-group">
+          <label for="login-mobile">Mobile Number</label>
+          <input type="tel" id="login-mobile" placeholder="Your registered mobile" required>
+        </div>
+        <div class="form-error" id="login-error" style="display:none;"></div>
+        <button type="submit" class="btn btn-primary btn-block" id="login-btn">Log In</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="main-footer"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/users.js"></script>
+  <script src="js/components.js"></script>
+  <script>
+    Components.initNav('');
+
+    const params = new URLSearchParams(window.location.search);
+    const returnUrl = params.get('return') ? decodeURIComponent(params.get('return')) : 'index.html';
+
+    if (Auth.isLoggedIn()) {
+      window.location.href = returnUrl.startsWith('/') ? returnUrl.slice(1) : returnUrl;
+    }
+
+    const tabRegister = document.getElementById('tab-register');
+    const tabLogin = document.getElementById('tab-login');
+    const registerForm = document.getElementById('register-form');
+    const loginForm = document.getElementById('login-form');
+
+    tabRegister.addEventListener('click', () => {
+      tabRegister.classList.add('active');
+      tabLogin.classList.remove('active');
+      registerForm.style.display = 'block';
+      loginForm.style.display = 'none';
+    });
+
+    tabLogin.addEventListener('click', () => {
+      tabLogin.classList.add('active');
+      tabRegister.classList.remove('active');
+      loginForm.style.display = 'block';
+      registerForm.style.display = 'none';
+    });
+
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('register-btn');
+      const errEl = document.getElementById('register-error');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+
+      try {
+        await Users.register(
+          document.getElementById('reg-name').value,
+          document.getElementById('reg-mobile').value
+        );
+        Utils.showToast('Welcome! Account created successfully.');
+        setTimeout(() => window.location.href = returnUrl.startsWith('/') ? returnUrl.slice(1) : returnUrl, 600);
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+        Utils.showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+      }
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('login-btn');
+      const errEl = document.getElementById('login-error');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Logging in...';
+
+      try {
+        await Users.login(document.getElementById('login-mobile').value);
+        Utils.showToast('Welcome back!');
+        setTimeout(() => window.location.href = returnUrl.startsWith('/') ? returnUrl.slice(1) : returnUrl, 600);
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+        Utils.showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Log In';
+      }
+    });
+  </script>
+</body>
+</html>

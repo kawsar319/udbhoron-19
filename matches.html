@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matches - Udbhoron '19 Predictor</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="main-nav"></div>
+
+  <header class="page-header">
+    <h1>World Cup Matches</h1>
+    <p>Predict scores before kickoff</p>
+  </header>
+
+  <div class="page-content">
+    <div class="filter-bar">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="upcoming">Upcoming</button>
+      <button class="filter-btn" data-filter="live">Live</button>
+      <button class="filter-btn" data-filter="finished">Finished</button>
+    </div>
+    <div id="matches-list" class="matches-grid"></div>
+  </div>
+
+  <div id="main-footer"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/matches.js"></script>
+  <script src="js/components.js"></script>
+  <script>
+    Components.initNav('matches');
+
+    let allMatches = [];
+    let currentFilter = 'all';
+    let countdownInterval;
+
+    function renderMatches() {
+      const container = document.getElementById('matches-list');
+      let filtered = allMatches;
+      if (currentFilter !== 'all') {
+        filtered = allMatches.filter(m => m.status === currentFilter);
+      }
+      if (!filtered.length) {
+        container.innerHTML = '<p class="empty-state">No matches found for this filter.</p>';
+        return;
+      }
+      container.innerHTML = filtered.map(m => Matches.renderMatchCard(m, { showPredict: true })).join('');
+    }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        renderMatches();
+      });
+    });
+
+    const container = document.getElementById('matches-list');
+    Utils.showLoading(container);
+
+    Matches.subscribeAll(matches => {
+      allMatches = matches;
+      renderMatches();
+    });
+
+    countdownInterval = setInterval(() => {
+      document.querySelectorAll('.match-card .countdown').forEach(el => {
+        const card = el.closest('.match-card');
+        const match = allMatches.find(m => m.matchId === card?.dataset.matchId);
+        if (match && match.status === 'upcoming') {
+          const cd = Utils.getCountdown(match.kickoffTime);
+          el.textContent = cd.expired ? 'Kickoff!' : cd.text;
+        }
+      });
+    }, 1000);
+  </script>
+</body>
+</html>
