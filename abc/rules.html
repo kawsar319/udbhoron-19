@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rules - Udbhoron '19 Predictor</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="main-nav"></div>
+
+  <header class="page-header">
+    <h1>How It Works</h1>
+    <p>Rules and scoring for Udbhoron '19 Predictor FWC-26</p>
+  </header>
+
+  <div class="page-content">
+    <div class="rules-content">
+      <h2>Getting Started</h2>
+      <ol>
+        <li>Register with your <strong>full name</strong> and <strong>mobile number</strong>.</li>
+        <li>One account per mobile number — keep your number unique.</li>
+        <li>Browse upcoming World Cup 2026 matches and submit your predictions.</li>
+        <li>Climb the leaderboard and compete for rewards at the end of the tournament!</li>
+      </ol>
+
+      <h2>Making Predictions</h2>
+      <ul>
+        <li>Predict the <strong>score</strong> for both teams (e.g. Argentina 2 - 1 Brazil).</li>
+        <li>The predicted winner is derived from your score (higher score wins, equal = Draw).</li>
+        <li><strong>One prediction per match</strong> — submissions cannot be edited.</li>
+        <li>Predictions close automatically at <strong>kickoff time</strong>.</li>
+        <li>You cannot predict after a match has started.</li>
+      </ul>
+
+      <h2>Point System</h2>
+      <table class="points-table">
+        <thead>
+          <tr><th>Scenario</th><th>Points</th><th>Example</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Correct winner + exact score</td>
+            <td><strong>5 points</strong></td>
+            <td>Predict 2-1, Result 2-1</td>
+          </tr>
+          <tr>
+            <td>Correct winner, wrong score</td>
+            <td><strong>3 points</strong></td>
+            <td>Predict 2-1, Result 3-1</td>
+          </tr>
+          <tr>
+            <td>Wrong winner</td>
+            <td><strong>0 points</strong></td>
+            <td>Predict 2-1 Argentina, Result 1-0 Brazil</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Leaderboard</h2>
+      <ul>
+        <li>Points from all matches are summed into your <strong>total points</strong>.</li>
+        <li>The leaderboard ranks players by total points (highest first).</li>
+        <li>Leaderboard updates in real-time after match results are published.</li>
+        <li>Top-ranked participants at the end of the tournament receive rewards.</li>
+      </ul>
+
+      <h2>Fair Play</h2>
+      <ul>
+        <li>Play fair — one account per person.</li>
+        <li>Predictions are locked at kickoff on both frontend and backend.</li>
+        <li>Match results are published by the tournament admin.</li>
+        <li>Points are calculated automatically when results are published.</li>
+      </ul>
+
+      <div style="text-align:center; margin-top:2rem;">
+        <a href="register.html" class="btn btn-gold">Join Now</a>
+        <a href="matches.html" class="btn btn-primary" style="margin-left:0.5rem;">View Matches</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="main-footer"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/components.js"></script>
+  <script>
+    Components.initNav('rules');
+  </script>
+</body>
+</html>

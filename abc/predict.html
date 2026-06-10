@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Predict Match - Udbhoron '19 Predictor</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="main-nav"></div>
+
+  <header class="page-header">
+    <h1 id="page-title">Match Prediction</h1>
+    <p id="page-subtitle">Submit your prediction before kickoff</p>
+  </header>
+
+  <div class="page-content">
+    <div id="prediction-container"></div>
+  </div>
+
+  <div id="main-footer"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/matches.js"></script>
+  <script src="js/predictions.js"></script>
+  <script src="js/components.js"></script>
+  <script>
+    Components.initNav('matches');
+
+    const params = new URLSearchParams(window.location.search);
+    const matchId = params.get('id');
+    const container = document.getElementById('prediction-container');
+
+    if (!matchId) {
+      Utils.showError(container, 'No match specified.');
+    } else if (!Auth.requireAuth()) {
+      // redirected
+    } else {
+      loadPredictionPage();
+    }
+
+    let countdownInterval;
+
+    async function loadPredictionPage() {
+      Utils.showLoading(container);
+      try {
+        const user = Auth.getCurrentUser();
+        const match = await Matches.getById(matchId);
+        if (!match) {
+          Utils.showError(container, 'Match not found.');
+          return;
+        }
+
+        document.getElementById('page-title').textContent = `${match.teamA} vs ${match.teamB}`;
+        document.getElementById('page-subtitle').textContent = Utils.formatDateTime(match.kickoffTime);
+
+        const existing = await Predictions.getByUserAndMatch(user.userId, matchId);
+        const closed = Utils.isPredictionClosed(match.kickoffTime) || match.status !== 'upcoming';
+
+        if (existing) {
+          renderSubmitted(match, existing);
+        } else if (closed) {
+          renderClosed(match);
+        } else {
+          renderForm(match);
+        }
+      } catch (err) {
+        Utils.showError(container, err.message || 'Failed to load match.');
+      }
+    }
+
+    function renderSubmitted(match, pred) {
+      container.innerHTML = `
+        <div class="prediction-form prediction-submitted">
+          <div class="check">✅</div>
+          <h2>Prediction Submitted</h2>
+          <p>You predicted <strong>${pred.scoreA} - ${pred.scoreB}</strong></p>
+          <p>Winner: <strong>${Utils.winnerLabel(pred.predictedWinner, match.teamA, match.teamB)}</strong></p>
+          ${match.result ? `<p>Result: <strong>${match.result.scoreA} - ${match.result.scoreB}</strong> · Points: <strong>${pred.points}</strong></p>` : '<p>Result pending — check back after the match!</p>'}
+          <a href="matches.html" class="btn btn-primary" style="margin-top:1rem;">Back to Matches</a>
+        </div>
+      `;
+    }
+
+    function renderClosed(match) {
+      container.innerHTML = `
+        <div class="prediction-form prediction-submitted">
+          <div class="check">🔒</div>
+          <h2>Prediction Closed</h2>
+          <p>Kickoff time has passed. Predictions are no longer accepted for this match.</p>
+          ${match.result ? `<p>Final Result: <strong>${match.teamA} ${match.result.scoreA} - ${match.result.scoreB} ${match.teamB}</strong></p>` : ''}
+          <a href="matches.html" class="btn btn-primary" style="margin-top:1rem;">Back to Matches</a>
+        </div>
+      `;
+    }
+
+    function renderForm(match) {
+      container.innerHTML = `
+        <div class="prediction-form">
+          <div style="text-align:center; margin-bottom:1rem;">
+            ${Utils.statusBadge(match.status)}
+            <div id="countdown-display" class="countdown" style="display:inline-block; margin-left:0.5rem; font-size:1rem;"></div>
+          </div>
+          <form id="predict-form">
+            <div class="score-inputs">
+              <span class="team-label">${Utils.escapeHtml(match.teamA)}</span>
+              <input type="number" id="score-a" min="0" max="20" value="0" required>
+              <span class="score-separator">-</span>
+              <input type="number" id="score-b" min="0" max="20" value="0" required>
+              <span class="team-label">${Utils.escapeHtml(match.teamB)}</span>
+            </div>
+            <div class="winner-preview" id="winner-preview">Predicted Winner: Draw</div>
+            <div class="form-error" id="predict-error" style="display:none;"></div>
+            <button type="submit" class="btn btn-gold btn-block" id="submit-btn">Submit Prediction</button>
+            <p style="text-align:center; margin-top:1rem; font-size:0.85rem; color:var(--text-secondary);">
+              Predictions cannot be edited after submission.
+            </p>
+          </form>
+        </div>
+      `;
+
+      const scoreA = document.getElementById('score-a');
+      const scoreB = document.getElementById('score-b');
+      const preview = document.getElementById('winner-preview');
+      const countdownEl = document.getElementById('countdown-display');
+
+      function updatePreview() {
+        const a = parseInt(scoreA.value, 10) || 0;
+        const b = parseInt(scoreB.value, 10) || 0;
+        const winner = Utils.deriveWinner(a, b);
+        preview.textContent = `Predicted Winner: ${Utils.winnerLabel(winner, match.teamA, match.teamB)}`;
+      }
+
+      function updateCountdown() {
+        const cd = Utils.getCountdown(match.kickoffTime);
+        countdownEl.textContent = cd.expired ? 'Prediction Closed' : `Closes in: ${cd.text}`;
+        if (cd.expired) {
+          clearInterval(countdownInterval);
+          renderClosed(match);
+        }
+      }
+
+      scoreA.addEventListener('input', updatePreview);
+      scoreB.addEventListener('input', updatePreview);
+      updatePreview();
+      updateCountdown();
+      countdownInterval = setInterval(updateCountdown, 1000);
+
+      document.getElementById('predict-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (Utils.isPredictionClosed(match.kickoffTime)) {
+          Utils.showToast('Prediction closed — kickoff time has passed.', 'error');
+          renderClosed(match);
+          return;
+        }
+
+        const btn = document.getElementById('submit-btn');
+        const errEl = document.getElementById('predict-error');
+        errEl.style.display = 'none';
+        btn.disabled = true;
+        btn.textContent = 'Submitting...';
+
+        try {
+          const user = Auth.getCurrentUser();
+          await Predictions.submit(user.userId, matchId, scoreA.value, scoreB.value);
+          Utils.showToast('Prediction submitted successfully!');
+          const pred = await Predictions.getByUserAndMatch(user.userId, matchId);
+          renderSubmitted(match, pred);
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.style.display = 'block';
+          Utils.showToast(err.message, 'error');
+          btn.disabled = false;
+          btn.textContent = 'Submit Prediction';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

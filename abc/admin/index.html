@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Udbhoron '19 Predictor</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <meta name="robots" content="noindex, nofollow">
+</head>
+<body>
+  <div id="login-screen" class="admin-login">
+    <div class="form-card">
+      <h1>Admin Login</h1>
+      <p>Udbhoron '19 Predictor — Admin Dashboard</p>
+      <form id="admin-login-form">
+        <div class="form-group">
+          <label for="admin-email">Email</label>
+          <input type="email" id="admin-email" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="admin-password">Password</label>
+          <input type="password" id="admin-password" required autocomplete="current-password">
+        </div>
+        <div class="form-error" id="login-error" style="display:none;"></div>
+        <button type="submit" class="btn btn-primary btn-block" id="login-btn">Sign In</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="dashboard" class="admin-layout" style="display:none;">
+    <aside class="admin-sidebar">
+      <h2>⚽ Admin Panel</h2>
+      <button class="admin-nav-link active" data-panel="matches">Matches</button>
+      <button class="admin-nav-link" data-panel="add-match">Add Match</button>
+      <button class="admin-nav-link" data-panel="users">Users</button>
+      <button class="admin-nav-link" data-panel="predictions">Predictions</button>
+      <button class="admin-nav-link" data-panel="leaderboard">Leaderboard</button>
+      <button class="admin-nav-link" id="admin-logout" style="margin-top:1rem; color:#f87171;">Logout</button>
+    </aside>
+
+    <main class="admin-main">
+      <div id="panel-matches" class="admin-panel active">
+        <h2>Manage Matches</h2>
+        <div id="matches-table"></div>
+      </div>
+
+      <div id="panel-add-match" class="admin-panel">
+        <h2>Add New Match</h2>
+        <form id="add-match-form" class="admin-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="team-a">Team A</label>
+              <input type="text" id="team-a" required placeholder="e.g. Argentina">
+            </div>
+            <div class="form-group">
+              <label for="team-b">Team B</label>
+              <input type="text" id="team-b" required placeholder="e.g. Brazil">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="kickoff">Kickoff Date & Time</label>
+              <input type="datetime-local" id="kickoff" required>
+            </div>
+            <div class="form-group">
+              <label for="status">Status</label>
+              <select id="status">
+                <option value="upcoming">Upcoming</option>
+                <option value="live">Live</option>
+                <option value="finished">Finished</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-gold">Add Match</button>
+        </form>
+      </div>
+
+      <div id="panel-users" class="admin-panel">
+        <h2>Registered Users</h2>
+        <div id="users-table"></div>
+      </div>
+
+      <div id="panel-predictions" class="admin-panel">
+        <h2>All Predictions</h2>
+        <div id="predictions-table"></div>
+      </div>
+
+      <div id="panel-leaderboard" class="admin-panel">
+        <h2>Leaderboard</h2>
+        <div id="admin-leaderboard"></div>
+      </div>
+    </main>
+  </div>
+
+  <div id="modal-root"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/users.js"></script>
+  <script src="../js/matches.js"></script>
+  <script src="../js/predictions.js"></script>
+  <script src="../js/admin.js"></script>
+  <script>
+    const loginScreen = document.getElementById('login-screen');
+    const dashboard = document.getElementById('dashboard');
+
+    Admin.onAuthChange(user => {
+      if (user) {
+        loginScreen.style.display = 'none';
+        dashboard.style.display = 'grid';
+        loadDashboard();
+      } else {
+        loginScreen.style.display = 'flex';
+        dashboard.style.display = 'none';
+      }
+    });
+
+    document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('login-btn');
+      const errEl = document.getElementById('login-error');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      try {
+        await Admin.login(
+          document.getElementById('admin-email').value,
+          document.getElementById('admin-password').value
+        );
+        Utils.showToast('Welcome, Admin!');
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('admin-logout').addEventListener('click', async () => {
+      await Admin.logout();
+      Utils.showToast('Logged out.');
+    });
+
+    document.querySelectorAll('.admin-nav-link[data-panel]').forEach(link => {
+      link.addEventListener('click', () => {
+        document.querySelectorAll('.admin-nav-link').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById(`panel-${link.dataset.panel}`).classList.add('active');
+      });
+    });
+
+    let allMatches = [];
+
+    async function loadDashboard() {
+      loadMatches();
+      loadUsers();
+      loadPredictions();
+      loadLeaderboard();
+    }
+
+    async function loadMatches() {
+      const el = document.getElementById('matches-table');
+      Utils.showLoading(el);
+      try {
+        allMatches = await Matches.getAll();
+        el.innerHTML = Admin.renderMatchTable(allMatches);
+        bindMatchActions();
+      } catch (err) {
+        Utils.showError(el, err.message);
+      }
+    }
+
+    function bindMatchActions() {
+      document.querySelectorAll('.edit-match-btn').forEach(btn => {
+        btn.addEventListener('click', () => openEditModal(btn.dataset.id));
+      });
+      document.querySelectorAll('.result-match-btn').forEach(btn => {
+        btn.addEventListener('click', () => openResultModal(btn.dataset.id));
+      });
+      document.querySelectorAll('.recalc-btn').forEach(btn => {
+        btn.addEventListener('click', () => recalculate(btn.dataset.id));
+      });
+      document.querySelectorAll('.delete-match-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteMatch(btn.dataset.id));
+      });
+    }
+
+    document.getElementById('add-match-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await Admin.addMatch({
+          teamA: document.getElementById('team-a').value,
+          teamB: document.getElementById('team-b').value,
+          kickoffTime: document.getElementById('kickoff').value,
+          status: document.getElementById('status').value
+        });
+        Utils.showToast('Match added successfully!');
+        e.target.reset();
+        loadMatches();
+        document.querySelector('[data-panel="matches"]').click();
+      } catch (err) {
+        Utils.showToast(err.message, 'error');
+      }
+    });
+
+    function openEditModal(matchId) {
+      const match = allMatches.find(m => m.matchId === matchId);
+      if (!match) return;
+
+      const kickoffDate = match.kickoffTime.toDate();
+      const local = new Date(kickoffDate.getTime() - kickoffDate.getTimezoneOffset() * 60000)
+        .toISOString().slice(0, 16);
+
+      showModal(`
+        <h3>Edit Match</h3>
+        <form id="edit-form">
+          <div class="form-group">
+            <label>Team A</label>
+            <input type="text" id="edit-team-a" value="${Utils.escapeHtml(match.teamA)}" required>
+          </div>
+          <div class="form-group">
+            <label>Team B</label>
+            <input type="text" id="edit-team-b" value="${Utils.escapeHtml(match.teamB)}" required>
+          </div>
+          <div class="form-group">
+            <label>Kickoff</label>
+            <input type="datetime-local" id="edit-kickoff" value="${local}" required>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="edit-status">
+              <option value="upcoming" ${match.status === 'upcoming' ? 'selected' : ''}>Upcoming</option>
+              <option value="live" ${match.status === 'live' ? 'selected' : ''}>Live</option>
+              <option value="finished" ${match.status === 'finished' ? 'selected' : ''}>Finished</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" id="modal-cancel">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      `);
+
+      document.getElementById('edit-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          await Admin.editMatch(matchId, {
+            teamA: document.getElementById('edit-team-a').value,
+            teamB: document.getElementById('edit-team-b').value,
+            kickoffTime: document.getElementById('edit-kickoff').value,
+            status: document.getElementById('edit-status').value
+          });
+          Utils.showToast('Match updated!');
+          closeModal();
+          loadMatches();
+        } catch (err) {
+          Utils.showToast(err.message, 'error');
+        }
+      });
+    }
+
+    function openResultModal(matchId) {
+      const match = allMatches.find(m => m.matchId === matchId);
+      if (!match) return;
+
+      showModal(`
+        <h3>Publish Result</h3>
+        <p style="margin-bottom:1rem;">${Utils.escapeHtml(match.teamA)} vs ${Utils.escapeHtml(match.teamB)}</p>
+        <form id="result-form">
+          <div class="score-inputs">
+            <span class="team-label">${Utils.escapeHtml(match.teamA)}</span>
+            <input type="number" id="result-a" min="0" max="20" value="${match.result?.scoreA ?? 0}" required>
+            <span class="score-separator">-</span>
+            <input type="number" id="result-b" min="0" max="20" value="${match.result?.scoreB ?? 0}" required>
+            <span class="team-label">${Utils.escapeHtml(match.teamB)}</span>
+          </div>
+          <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">
+            Publishing the result will automatically calculate points for all predictions.
+          </p>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" id="modal-cancel">Cancel</button>
+            <button type="submit" class="btn btn-gold">Publish & Calculate Points</button>
+          </div>
+        </form>
+      `);
+
+      document.getElementById('result-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          const result = await Admin.publishResultAndScore(
+            matchId,
+            document.getElementById('result-a').value,
+            document.getElementById('result-b').value
+          );
+          Utils.showToast(`Result published! ${result.predictionsUpdated} predictions scored.`);
+          closeModal();
+          loadMatches();
+          loadLeaderboard();
+          loadPredictions();
+        } catch (err) {
+          Utils.showToast(err.message, 'error');
+        }
+      });
+    }
+
+    async function recalculate(matchId) {
+      if (!confirm('Recalculate points for all predictions on this match?')) return;
+      try {
+        const result = await Admin.recalculatePoints(matchId);
+        Utils.showToast(`Recalculated ${result.predictionsUpdated} predictions.`);
+        loadLeaderboard();
+        loadPredictions();
+      } catch (err) {
+        Utils.showToast(err.message, 'error');
+      }
+    }
+
+    async function deleteMatch(matchId) {
+      if (!confirm('Delete this match and all its predictions? This cannot be undone.')) return;
+      try {
+        await Admin.deleteMatch(matchId);
+        Utils.showToast('Match deleted.');
+        loadMatches();
+      } catch (err) {
+        Utils.showToast(err.message, 'error');
+      }
+    }
+
+    async function loadUsers() {
+      const el = document.getElementById('users-table');
+      try {
+        const users = await Users.getAll();
+        el.innerHTML = Admin.renderUsersTable(users);
+      } catch (err) {
+        Utils.showError(el, err.message);
+      }
+    }
+
+    async function loadPredictions() {
+      const el = document.getElementById('predictions-table');
+      try {
+        const [predictions, users, matches] = await Promise.all([
+          db.collection('predictions').get().then(s => s.docs.map(d => ({ predictionId: d.id, ...d.data() }))),
+          Users.getAll(),
+          Matches.getAll()
+        ]);
+        const usersMap = Object.fromEntries(users.map(u => [u.userId, u]));
+        const matchesMap = Object.fromEntries(matches.map(m => [m.matchId, m]));
+        el.innerHTML = Admin.renderPredictionsTable(predictions, usersMap, matchesMap);
+      } catch (err) {
+        Utils.showError(el, err.message);
+      }
+    }
+
+    async function loadLeaderboard() {
+      const el = document.getElementById('admin-leaderboard');
+      try {
+        const users = await Users.getLeaderboard();
+        el.innerHTML = `
+          <table class="admin-table">
+            <thead><tr><th>Rank</th><th>Name</th><th>Mobile</th><th>Points</th></tr></thead>
+            <tbody>
+              ${users.map((u, i) => `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td>${Utils.escapeHtml(u.name)}</td>
+                  <td>${Utils.escapeHtml(u.mobile)}</td>
+                  <td><strong>${u.totalPoints || 0}</strong></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (err) {
+        Utils.showError(el, err.message);
+      }
+    }
+
+    function showModal(html) {
+      const root = document.getElementById('modal-root');
+      root.innerHTML = `<div class="modal-overlay" id="modal-overlay"><div class="modal">${html}</div></div>`;
+      document.getElementById('modal-cancel')?.addEventListener('click', closeModal);
+      document.getElementById('modal-overlay')?.addEventListener('click', (e) => {
+        if (e.target.id === 'modal-overlay') closeModal();
+      });
+    }
+
+    function closeModal() {
+      document.getElementById('modal-root').innerHTML = '';
+    }
+  </script>
+</body>
+</html>

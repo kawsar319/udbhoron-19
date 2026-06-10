@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Udbhoron '19 Predictor FWC-26</title>
+  <meta name="description" content="Predict FIFA World Cup 2026 match scores and compete on the leaderboard with Udbhoron '19 community.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="main-nav"></div>
+
+  <main>
+    <div id="hero-section"></div>
+
+    <section class="section" id="featured-match-section" style="display:none;">
+      <div class="container">
+        <div id="featured-countdown"></div>
+      </div>
+    </section>
+
+    <section class="section section-alt">
+      <div class="container">
+        <div class="section-header">
+          <h2>Upcoming Matches</h2>
+          <p>Predict before kickoff to earn points</p>
+        </div>
+        <div id="upcoming-matches" class="matches-grid"></div>
+        <div style="text-align:center; margin-top:1.5rem;">
+          <a href="matches.html" class="btn btn-primary">View All Matches</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2>Top Players</h2>
+          <p>Current leaderboard leaders</p>
+        </div>
+        <div id="top-players" class="leaderboard-top"></div>
+        <div style="text-align:center;">
+          <a href="leaderboard.html" class="btn btn-gold">Full Leaderboard</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt">
+      <div class="container">
+        <div class="section-header">
+          <h2>Tournament Info</h2>
+          <p>Everything you need to know about FWC-26</p>
+        </div>
+        <div class="info-cards">
+          <div class="info-card">
+            <div class="icon">🏆</div>
+            <h3>FIFA World Cup 2026</h3>
+            <p>Hosted across USA, Canada & Mexico. The biggest football tournament on earth.</p>
+          </div>
+          <div class="info-card">
+            <div class="icon">🎯</div>
+            <h3>Predict & Score</h3>
+            <p>Guess match results before kickoff. Exact score = 5 pts, correct winner = 3 pts.</p>
+          </div>
+          <div class="info-card">
+            <div class="icon">👥</div>
+            <h3>Udbhoron '19</h3>
+            <p>Join our friend circle and community. Compete for rewards at the end of the tournament.</p>
+          </div>
+          <div class="info-card">
+            <div class="icon">📱</div>
+            <h3>Easy & Mobile</h3>
+            <p>Register with your name and mobile. Predict from any device, anytime before kickoff.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="main-footer"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/users.js"></script>
+  <script src="js/matches.js"></script>
+  <script src="js/predictions.js"></script>
+  <script src="js/components.js"></script>
+  <script>
+    Components.initNav('home');
+    document.getElementById('hero-section').innerHTML = Components.renderHero();
+
+    let countdownInterval;
+
+    async function loadUpcoming() {
+      const container = document.getElementById('upcoming-matches');
+      Utils.showLoading(container);
+      try {
+        const matches = await Matches.getUpcoming(6);
+        if (!matches.length) {
+          container.innerHTML = '<p class="empty-state">No upcoming matches yet. Check back soon!</p>';
+          return;
+        }
+        container.innerHTML = matches.map(m => Matches.renderMatchCard(m, { showPredict: true })).join('');
+
+        const next = matches[0];
+        if (next) showFeaturedCountdown(next);
+      } catch (err) {
+        Utils.showError(container, 'Failed to load matches. Please try again.');
+      }
+    }
+
+    function showFeaturedCountdown(match) {
+      const section = document.getElementById('featured-match-section');
+      const el = document.getElementById('featured-countdown');
+      section.style.display = 'block';
+
+      function update() {
+        const cd = Utils.getCountdown(match.kickoffTime);
+        el.innerHTML = `
+          <div class="featured-countdown">
+            <h3>Next Match: ${Utils.escapeHtml(match.teamA)} vs ${Utils.escapeHtml(match.teamB)}</h3>
+            <p>${Utils.formatDateTime(match.kickoffTime)}</p>
+            <div class="timer">${cd.expired ? 'Kickoff!' : cd.text}</div>
+          </div>
+        `;
+      }
+      update();
+      clearInterval(countdownInterval);
+      countdownInterval = setInterval(update, 1000);
+    }
+
+    async function loadTopPlayers() {
+      const container = document.getElementById('top-players');
+      Utils.showLoading(container);
+      try {
+        const users = await Users.getTop(3);
+        if (!users.length) {
+          container.innerHTML = '<p class="empty-state">No players yet. Be the first to join!</p>';
+          return;
+        }
+        const medals = ['🥇', '🥈', '🥉'];
+        container.innerHTML = users.map((u, i) => `
+          <div class="top-player-card ${i === 0 ? 'first' : ''}">
+            <div class="rank">${medals[i] || `#${i + 1}`}</div>
+            <div class="name">${Utils.escapeHtml(u.name)}</div>
+            <div class="points">${u.totalPoints || 0} pts</div>
+          </div>
+        `).join('');
+      } catch (err) {
+        Utils.showError(container, 'Failed to load leaderboard.');
+      }
+    }
+
+    loadUpcoming();
+    loadTopPlayers();
+  </script>
+</body>
+</html>
